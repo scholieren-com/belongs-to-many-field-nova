@@ -3,6 +3,7 @@
 namespace Benjacho\BelongsToManyField;
 
 use Benjacho\BelongsToManyField\Rules\ArrayRules;
+use Daanadriaan\SelectOrCreate\SelectOrCreate;
 use Laravel\Nova\Fields\Field;
 use Laravel\Nova\Fields\ResourceRelationshipGuesser;
 use Laravel\Nova\Http\Requests\NovaRequest;
@@ -23,6 +24,7 @@ class BelongsToManyField extends Field
     public $messageSelectAll = 'Select All';
     public $height = '350px';
     public $viewable = true;
+    public $creatable = false;
     public $showAsList = false;
     public $pivotData = [];
     /**
@@ -84,6 +86,10 @@ class BelongsToManyField extends Field
         $this->localize();
     }
 
+    public function clearCacheAfterCreating(string $cacheKey): self {
+        return $this->withMeta(['cache_key' => $cacheKey]);
+    }
+
     public function optionsLabel(string $optionsLabel)
     {
         $this->label = $optionsLabel;
@@ -109,6 +115,23 @@ class BelongsToManyField extends Field
         $this->relationModel = $model;
 
         return $this;
+    }
+
+    /**
+     * @param array $fields
+     *
+     * @return self
+     */
+    public function fields(array $fields = ['name']): self {
+        return $this->withMeta(['fields' => $fields]);
+    }
+
+    public function model($model = null): self {
+        return $this->withMeta(['model' => $model]);
+    }
+
+    public function creatable($creatable = true): self {
+        return $this->withMeta(['creatable' => $creatable]);
     }
 
     public function isAction($isAction = true)
@@ -180,7 +203,7 @@ class BelongsToManyField extends Field
         }
     }
 
-    public function jsonSerialize()
+    public function jsonSerialize(): array
     {
         $this->resolveOptions();
 
@@ -204,6 +227,7 @@ class BelongsToManyField extends Field
             'textAlign' => $this->textAlign,
             'value' => $this->value,
             'viewable' => $this->viewable,
+            'visible' => $this->visible,
             'validationKey' => $this->validationKey(),
         ], $this->meta());
     }
