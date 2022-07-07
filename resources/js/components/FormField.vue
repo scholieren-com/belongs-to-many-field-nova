@@ -173,8 +173,6 @@ export default {
         ? this.field.optionsLabel
         : "name";
 
-      console.log(this.field);
-
       this.trackBy = this.field.trackBy ? this.field.trackBy : "id";
       this.value = this.field.value ? this.field.value.map((el) => ({
         ...el,
