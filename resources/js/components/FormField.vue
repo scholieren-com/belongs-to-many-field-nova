@@ -27,23 +27,46 @@
           :options="options"
           v-bind="multiSelectProps"
           v-model="value"
+          @search-change="searchChange"
         >
           <template #noOptions>{{
             field.multiselectSlots.noOptions
           }}</template>
-          <template #noResult>{{
-            field.multiselectSlots.noResult
-          }}</template>
+          <template v-if="this.field.creatable" #noResult>
+              <div @click="openModal = true">"{{ query }}" aanmaken?</div>
+          </template>
+            <template v-else #noResult>
+                {{
+                    field.multiselectSlots.noResult
+                }}
+            </template>
         </MultiSelect>
       </div>
     </template>
   </DefaultField>
+    <Modal v-if="openModal" @modal-close='openModal = false' @modal-submit="modalSubmit">
+        <div v-for='f in field.fields' class="field-wrapper flex flex-col border-b border-gray-100 dark:border-gray-700 md:flex-row" index="0">
+            <div class="px-6 md:px-8 mt-2 md:mt-0 w-full md:w-1/5 md:py-5">
+                <label :for="f"
+                       class="inline-block pt-2 leading-tight">
+                    {{ ucfirst(f) }}
+                    <span class="text-red-500 text-sm">*</span></label></div>
+            <div class="mt-1 md:mt-0 pb-5 px-6 md:px-8 w-full md:w-3/5 md:py-5">
+                <input type="text" v-model='values[f]' :placeholder='ucfirst(f)'
+                       class="w-full form-control form-input form-input-bordered"
+                       :id="f"
+                       dusk="name" list="name-list">
+            </div>
+        </div>
+    </Modal>
+    <div v-if="openModal" @click="openModal = false" class="fixed inset-0 z-[55] bg-gray-500 dark:bg-gray-900 opacity-75" dusk="modal-backdrop"></div>
 </template>
 
 <script>
 import { FormField, HandlesValidationErrors } from "laravel-nova";
 import MultiSelect from "vue-multiselect";
 import get from "lodash.get";
+import Modal from './Modal';
 
 export default {
   mixins: [FormField, HandlesValidationErrors],
@@ -51,7 +74,7 @@ export default {
   props: ["resourceName", "resourceId", "field"],
 
   components: {
-    MultiSelect,
+    MultiSelect, Modal
   },
   data() {
     return {
@@ -62,7 +85,11 @@ export default {
       isDependant: false,
       shouldClear: false,
       loading: true,
+        query: '',
+        openModal: false,
       selectAll: false,
+        values:       {},
+        modalLoading: false,
     };
   },
   mounted() {
@@ -101,6 +128,47 @@ export default {
     },
   },
   methods: {
+      ucfirst(v){
+          return v.charAt(0).toUpperCase() + v.slice(1);
+      },
+      searchChange(query){
+          this.query = query;
+          if(!this.openModal){
+              for(let k of this.field.fields){
+                  this.values[k] = query;
+              }
+          }
+      },
+      modalSubmit() {
+          this.sendForm(this.values);
+      },
+      sendForm(values) {
+          this.modalLoading = true;
+
+          Nova.request().post('/nova-vendor/belongs-to-many-field/quickCreate', {
+              values:    values,
+              model: this.field.model,
+              cache_key: this.field.cache_key
+          }).then(response => {
+              this.openModal    = false;
+              this.modalLoading = false;
+
+              if (response.data.success) {
+                  if (!response.data.existing) {
+                      this.$refs.multiselect.options.push(response.data.option); // add to rows
+                  }
+                  console.log(this.$refs.multiselect.options);
+                  this.$refs.multiselect.select(response.data.option, response.data.option.id); // add as selected
+              } else {
+                  alert('Oeps! Er is iets fout gegaan');//Nova.$emit('error', error.response);
+              }
+
+          }).catch(error => {
+              this.modalLoading = false;
+              alert(error);
+              //Nova.$emit('error', error.response);
+          });
+      },
     repositionDropdown(onOpen = false) {
       const ms = this.$refs.multiselect;
       if (!ms) return;
