@@ -2,10 +2,15 @@
 
 namespace Benjacho\BelongsToManyField\Http\Controllers;
 
-use Laravel\Nova\Fields\Field;
+use App\Http\Controllers\Controller;
+use Benjacho\BelongsToManyField\Http\Requests\QuickCreateRequest;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use Laravel\Nova\Http\Requests\NovaRequest;
+use Psr\SimpleCache\InvalidArgumentException;
 
-class ResourceController
+class ResourceController extends Controller
 {
     public function index(NovaRequest $request, $parent, $relationship, $optionsLabel, $dependsOnValue = null, $dependsOnKey = null)
     {
@@ -36,5 +41,33 @@ class ResourceController
             })
             ->sortBy($optionsLabel)
             ->values();
+    }
+
+    /**
+     * @throws InvalidArgumentException|AuthorizationException
+     */
+    public function create(QuickCreateRequest $request): array {
+        /** @var Model $modelClass */
+        $modelName  = $request->input('model');
+        $modelClass = new $modelName();
+
+        // Unique slug
+        if ($request->has('values.slug') && $option = $modelClass::where('slug', $request->input('values.slug'))->first()) {
+            return ['success' => true, 'option' => $option, 'existing' => true];
+        }
+
+        $this->authorize('create', $modelName);
+
+        \Log::debug($request->input('values'));
+
+        $modelClass->fill($request->input('values'));
+
+        $cacheKey = $request->input('cache_key');
+
+        if ($cacheKey !== null) {
+            Cache::delete($cacheKey);
+        }
+
+        return ['success' => $modelClass->save(), 'option' => $modelClass];
     }
 }
