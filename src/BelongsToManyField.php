@@ -3,11 +3,13 @@
 namespace Benjacho\BelongsToManyField;
 
 use Benjacho\BelongsToManyField\Rules\ArrayRules;
-use Daanadriaan\SelectOrCreate\SelectOrCreate;
 use Laravel\Nova\Fields\Field;
 use Laravel\Nova\Fields\ResourceRelationshipGuesser;
 use Laravel\Nova\Http\Requests\NovaRequest;
 
+/**
+ * @method static static make(string $name, string|\Closure|callable|object|null $attribute = null, string|null $resource = null)
+ */
 class BelongsToManyField extends Field
 {
     /**
@@ -16,6 +18,11 @@ class BelongsToManyField extends Field
      * @var array|callable
      */
     private $optionsCallback;
+
+    /**
+     * @var callable
+     */
+    protected $filledCallback;
 
     public $showOnIndex = true;
     public $showOnDetail = true;
@@ -64,21 +71,22 @@ class BelongsToManyField extends Field
         $this->fillUsing(function ($request, $model, $attribute, $requestAttribute) use ($resource) {
             if (is_subclass_of($model, 'Illuminate\Database\Eloquent\Model')) {
                 $model::saved(function ($model) use ($attribute, $request) {
-                    $inp = json_decode($request->input($attribute), true);
+                    $requestData = $request->$attribute;
 
-                    if ($inp !== null) {
-                        $values = array_column($inp, 'id');
-                    } else {
-                        $values = [];
-                    }
+                    $values = self::getValuesFromRequestData($requestData, $model->getKeyName());
 
                     if (!empty($this->pivot())) {
                         $values = array_fill_keys($values, $this->pivot());
                     }
 
                     $model->$attribute()->sync(
-                        $values
+                        $values,
+                        detaching: !$model->wasRecentlyCreated
                     );
+
+                    if ($this->filledCallback) {
+                        call_user_func($this->filledCallback, $model, $attribute, $values, $request);
+                    }
                 });
                 $request->except($attribute);
             }
@@ -86,7 +94,29 @@ class BelongsToManyField extends Field
         $this->localize();
     }
 
-    public function clearCacheAfterCreating(string $cacheKey): self {
+    /**
+     * @throws JsonException
+     */
+    public static function getValuesFromRequestData(mixed $requestData, string $primaryKey = 'id'): array
+    {
+        if ($requestData !== null) {
+            $valuesArray = json_decode($requestData, true, 512, JSON_THROW_ON_ERROR);
+
+            if ($valuesArray === '') {
+                $values = [];
+            } else {
+                $values = array_column($valuesArray, $primaryKey);
+            }
+
+        } else {
+            $values = [];
+        }
+
+        return $values;
+    }
+
+    public function clearCacheAfterCreating(string $cacheKey): static
+    {
         return $this->withMeta(['cache_key' => $cacheKey]);
     }
 
@@ -240,6 +270,13 @@ class BelongsToManyField extends Field
     public function setPivot(array $attributes)
     {
         $this->pivotData = $attributes;
+
+        return $this;
+    }
+
+    public function withFilledCallback(?callable $filledCallback): self
+    {
+        $this->filledCallback = $filledCallback;
 
         return $this;
     }
