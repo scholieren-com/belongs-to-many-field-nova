@@ -99,7 +99,7 @@ class BelongsToManyField extends Field
      */
     public static function getValuesFromRequestData(mixed $requestData, string $primaryKey = 'id'): array
     {
-        if ($requestData !== null) {
+        if ($requestData !== null && $requestData !== "null") {
             $valuesArray = json_decode($requestData, true, 512, JSON_THROW_ON_ERROR);
 
             if ($valuesArray === '') {
