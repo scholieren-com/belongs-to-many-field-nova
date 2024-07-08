@@ -3,10 +3,12 @@
 namespace Benjacho\BelongsToManyField\Rules;
 
 use Illuminate\Contracts\Validation\Rule;
+use Validator;
 
 class ArrayRules implements Rule
 {
     public $rules = [];
+    public array $message = [];
 
     /**
      * Create a new rule instance.
@@ -31,7 +33,7 @@ class ArrayRules implements Rule
     {
         $input = [$attribute => json_decode($value, true)];
         $this->rules = [$attribute => $this->rules];
-        $validator = \Validator::make($input, $this->rules, $this->messages($attribute));
+        $validator = Validator::make($input, $this->rules, $this->messages($attribute));
         $this->message = $validator->errors()->get($attribute);
 
         return $validator->passes();
@@ -40,7 +42,7 @@ class ArrayRules implements Rule
     /**
      * Get the validation error message.
      *
-     * @return string
+     * @return array
      */
     public function message()
     {
